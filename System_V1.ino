@@ -189,6 +189,7 @@ void dropDown_System() { //activate the dropdown system =-=-=-=-=-=-=-=-=-=-=-=-
 void emergency_System() { // handes various situations classified as emergencies =-=-=-=-=-=-=
   //this can definitly be tidied up quite a bit, i just wanted to see most possibilities laid out
   //one hope of mine, which i havent tested yet, is if this is activated in the middle of the dropdown process, it shoudne actually affect anything.
+  // this section is probably gonna take the most thinking to finish
   //Serial.println("7");
   if (millis() - currentTime[6] >= overFlowTime || emergency_Status) { // only true after 45 min of flight or an emergency is already declared
     if (!useGPS) {
