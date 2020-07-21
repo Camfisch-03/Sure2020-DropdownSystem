@@ -33,7 +33,7 @@ void setup() {  //Setup=-=-=-=-=-=-=-=-=-==-=-=-=-=-=-=-=-=-=-=-=-=
     pinMode(dropPin[i], OUTPUT);
   } // pin 0 is only for the emergency drop system. 1-6 are the dropsondes, hence why pos = 1.
   pinMode(13, OUTPUT); //LED on pin 13 for some visual feedback
-  pinMode(11, INPUT);
+  pinMode(11, INPUT); // this is for a button so i can interact with the system
   //serial/ ports//////
   Serial.begin(9600);
   ss.begin(9600);
@@ -44,18 +44,21 @@ void setup() {  //Setup=-=-=-=-=-=-=-=-=-==-=-=-=-=-=-=-=-=-=-=-=-=
 void loop() {
   while (!flight_begun) {
     pre_Flight_System();
-    while (digitalRead(11) == HIGH) {
+    while (digitalRead(11) == HIGH) { //the code should come to a semi-hault while this is true
       newData = true;
-    }
-    if (millis() >= 10000) {
+    } //then once its false, only then, should it continue on... right?
+    if (millis() >= 10000) {  // just an artifical way to start the dropdown system
       flight_begun = true;
     }
-    currentTime[6] = millis();
+    currentTime[6] = millis(); // this is used to evaluate FlightTime(), and currentTime[6] shouldn't written to anywhere else
   }
-  Serial.println("flight has begun!");
+  Serial.println("\nflight has begun!");
 
   while (1) {
     //Serial.print("1");
+    //if(digitalRead(11) == HIGH){
+     // emergency_Status = true;  //artificiall create an emergency to forcefully start the dropdown sequence
+    //}
     dropDown_System();
     blink(1000);
 
@@ -65,7 +68,7 @@ void loop() {
 
 void dropDown_System() { //activate the dropdown system =-=-=-=-=-=-=-=-=-=-=-=-=-=-=
   //Serial.print("6");
-  if ((((GPSdata[Alt] >= 15000 && useGPS) || FlightTime() >= 10 * 1000) || emergency_Status) && !dropped) {
+  if ((((GPSdata[Alt] >= 15000 && useGPS) || FlightTime() >= 10 * 1000) || emergency_Status) && !dropped) { // after 10 seconds of run time
     //for this to work, both the atitude mush be above 15 km and gps working, or flight time exceeds 35 min,
     //and the dropsondes havent been dropped yet, or the emergency override says to go ahead
     if (pos <= 6 && prevState == 0 && millis() >= currentTime[Drop] + time_Off[pos - 1]) {
