@@ -33,7 +33,7 @@ void setup() {  //Setup=-=-=-=-=-=-=-=-=-==-=-=-=-=-=-=-=-=-=-=-=-=
     pinMode(dropPin[i], OUTPUT);
   } // pin 0 is only for the emergency drop system. 1-6 are the dropsondes, hence why pos = 1.
   pinMode(13, OUTPUT); //LED on pin 13 for some visual feedback
-  pinMode(11, INPUT); // this is for a button so i can interact with the system
+  pinMode(11, INPUT); // this is for a button so i can interact with the system. i need to remember to add a resistor to ground after the button to avout current leakage...
   //serial/ ports//////
   Serial.begin(9600);
   ss.begin(9600);
