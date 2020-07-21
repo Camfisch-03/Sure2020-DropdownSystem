@@ -1,176 +1,229 @@
-////////dropdown system//////////
+////////dropdown system////////
 //Cameron Fischer
-//v2 started: 7/17/20
+//v2, started: 7/20/20
 
-////Libraries/////////////
+//TODO//=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+//add a function to write to EEPROM for saving values
+//tidy up the emergency system ,as well as fugure out more of what is has to do
+//do some tests to make sure at least the concepts work
+//just generally tidy everything up
+//i have a lot to do, i just dont know what it is yet
+
+
+////Libraries=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 #include <TinyGPS++.h>
 #include <SoftwareSerial.h>
 #include <EEPROM.h>
 
-///////Global variables and counters////////////// theres a lot of them, not sure if i can condense a bit
-const int dropPins[] = {20, 14, 15, 16, 17, 18, 19};
-byte pos = 1, posOn = 1, prevState = 0, division = 3; // logic parameters for the dropdown system
-const unsigned long time_On = 5000, time_Off = 10000, div_Off = 20000; //* control the time length of nichrome wire firing
-bool goAhead = false, doIt, emergenc = false, dropped = false;
-bool newdata = false, useGPS = true; // dictate when to read data from GPS
-byte badConn, numSat = 0, strike = 0; //logic parameters for GPS usage
-unsigned long bufferTime =  5 * 60 * 1000; // 5 minutes buffer time
-unsigned long currentTime[] = {0, 0, 0, 0}; // various time arguements
-// address 0 for dropdown system, 1 for emergency system, 2 for GPS usage, 3 for the sat check
-uint32_t utcTime = 0;
-float Alt = 0, Lat, Lon, prevAlt; // position data from GPS
+//Declare global Variables=-=-=-=-=-=-=-=-=--=-=-=-=-=-=
+unsigned long currentTime[] = {0, 0, 0, 0, 0, 0, 0};
+byte GPS = 0, Drop = 1, numSat, count = 0;
+const int dropPin[] = {20, 14, 15, 16, 17, 18, 19};
+byte pos = 1, prevState = 0;
+bool flight_begun = false, dropped = false, newData = false, useGPS = true, emergency_Status = false;
+unsigned long time_On = 10000, time_Off[] = {20000, 20000, 40000, 20000, 20000, 20000}; // edit here for delay times
+unsigned long overFlowTime = 45*60*1000;
+float Lat, Lon, prevAlt, Alt;
+uint32_t utcTime;
 
-////GPS declaration////////////
+
+
+
+////GPS declaration=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 TinyGPSPlus gps;
 SoftwareSerial ss(0, 1); //RX 0, TX 1
 
-///setup pins and serial ports//////////
-void setup() {
-  //pin declarations/////////
-  for (int i = 0; i <= 6; i++) {
-    pinMode( dropPins[i], OUTPUT);
-  } // pin 0 is only for the emergency drop system. 1-6 are the dropsondes
-  pinMode(13, OUTPUT); //LED on pin 13 for visual feedback
 
-  //serial/ ports////////////
+
+void setup() {  //Setup=-=-=-=-=-=-=-=-=-==-=-=-=-=-=-=-=-=-=-=-=-=
+
+  //pin declarations//////
+  for (int i = 0; i <= 6; i++) {
+    pinMode(dropPin[i], OUTPUT);
+  } // pin 0 is only for the emergency drop system. 1-6 are the dropsondes, hence why pos = 1.
+  pinMode(13, OUTPUT); //LED on pin 13 for some visual feedback
+
+  //serial/ ports//////
   Serial.begin(9600);
   ss.begin(9600);
 
 }
 
-////main loop//////////
-void loop() {
-
-  feedGPS();
-
-  getGPSdata();
-  SatCheck();
 
 
-  if (millis() >= bufferTime && millis() - currentTime[2] >= 5000) {
-    Serial.print("Something's Wrong with the GPS ");
-    //this one only has to run if theres no new data for too long
-    GPSFailureCheck();
-    if (useGPS) {
-      feedGPS();
-      getGPSdata();
+void loop() {////main loop=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+  while (!flight_begun) { // preflight procedure, only ends once flight has begin
+    pre_Flight_System();
+
+    if (Alt > prevAlt && gps.altitude.isUpdated()) { // some condition so signal the beginning of the flight
+      count++;
+      if (count >= 5) { //if the GPS is reading an increase in altitude for 5 consecutive updates
+        flight_begun = true;
+      }
+
+    } else if (prevAlt > Alt && gps.altitude.isUpdated()) { // no clue if the .isUpdates() function wroks or if it even does what i think
+      count = 0;
     }
+    currentTime[6] = millis(); // used later for the flightTime function
   }
 
+  digitalWrite(13, LOW); // stop blinking as flight has begin
+  count = 0; // reset counter for later use
+
+  while (1 == 1) { // primary functionality, once flight begins =-=-=-=-=-=-=-=
+    FeedGPS();
+    getGPSdata();
+    satCheck();
+    
+    if (FlightTime() - currentTime[GPS] > 5000UL) { // 5 seconds go by with no new GPS data
+      GPSFailureCheck();
+    }
+
+    dropDown_System();
+
+    //it should be ok to run this every cycle, or maybe i can just run it once per second untill something happens?
+    emergency_System();
 
 
-  //some logic here to handle the dropdown system
-  dropDown();
-
-  //this one only runs if something is wrong.
-  emergencyDropSys();
-
+  }
 
 }
 
-void feedGPS() {
-  Serial.print("1");
-  while (ss.available() > 0) {
-    gps.encode(ss.read());
-    newdata = true;
-    useGPS = true;
-    currentTime[2] = millis();
-  }
+void pre_Flight_System() { //stuff to do before the flight begins =-=-=-=-=-=-=-=-=-=-=-=-=
+  //Serial.print("1");
+  FeedGPS();
+  getGPSdata();
+  blink(2000);  //just a simple slow blink so signify its on and running.
+
 }
 
-void getGPSdata() {
-  Serial.print("2");
-  if (newdata) {
-    Lat = gps.location.lat();       //latitude information in degrees
+
+unsigned long FlightTime() {// returns the flight time in millis =-=-=-=-=-=-=-=-=-=-=-=-=-=
+  unsigned long t = millis() - currentTime[6];
+  return t;
+}
+
+void FeedGPS() { // see if the GPS has any new data =-=-=-=-=-=-=-=-=--=-=-=-=-=-=
+  //Serial.print("2");
+  while (ss.available() > 0) {  //while there is new data
+    gps.encode(ss.read());  //send that new data to the GPS encoder to be read in getGPSdata()
+    newData = true; //there is new data
+    useGPS = true; // the GPS is working properly
+    currentTime[GPS] = FlightTime();
+  }
+
+}
+
+
+void getGPSdata() { // parse any new data the GPS has =-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+  //Serial.print("3");
+  if (newData) { // if there is new data
+    Lat = gps.location.lat(); //latitude
     Serial.print("LAT="); Serial.print(Lat, 6);
-    Lon = gps.location.lng();
+    Lon = gps.location.lng(); //longitude
     Serial.print("LNG="); Serial.println(Lon, 6);
-    prevAlt = Alt;
-    Alt = gps.altitude.meters();
+    prevAlt = Alt; // used for change in altitude
+    Alt = gps.altitude.meters(); // altitude
     Serial.print("ALT="); Serial.println(Alt);
-    numSat = gps.satellites.value();
+    numSat = gps.satellites.value();  //number of satalites used for calculations
     Serial.print("Num Sat="); Serial.println(numSat);
-    utcTime = gps.time.value();
+    utcTime = gps.time.value(); //global standard time
     Serial.print("UTC time ="); Serial.println(utcTime);
 
-
-    newdata = false;
+    newData = false; // all new data has been parsed
   }
 }
 
-void GPSFailureCheck() {
-  Serial.print("3");
-  currentTime[2] = millis();
-  useGPS = false;
-  while (currentTime[2] + 5000UL >=  millis()) { // 5 seconds of continuous checking
-    while (ss.available() > 0) {
+void satCheck(){ //checks to see how many satalites are present and if the GPS data is reliable
+  //Serial.print("4");
+  if(numSat <=3 && gps.satellites.isUpdated()){ // a GPS needs at least 3 satalites to work, but is only accurate with 4 or more
+    count++;
+  }else if(numSat >3){
+    count = 0;
+  }
+  if(count >= 5){ // is 5 GPS updates go by and there are less that 4 satalites for each, dont rely on the GPS.
+    useGPS = false;
+  }
+  
+}
+
+void GPSFailureCheck() { // check to see if there is a problem with the GPS=-=-=-=-=-=-=-=-
+  //Serial.print("5");
+  currentTime[GPS] = FlightTime(); //set a counter to measure the 5 seconds with
+  useGPS = false; // preemptivly declare the GPS to be not working
+  while (FlightTime() - currentTime[GPS] <= 5000UL) { // 5 seconds of continuous checking for new data
+    blink(500); //a rapid blinking
+    while (ss.available() > 0) { // only true if new data is recieved
       gps.encode(ss.read());
-      newdata = true;
-      useGPS = true;
-      break;
+      newData = true;
+      useGPS = true; // redeclare the GPS to be working
     }
   }
-  Serial.println("theres no new data!! ");
-  currentTime[2] = millis();
+  digitalWrite(13, LOW);
+  currentTime[GPS] = FlightTime();
 }
 
-void SatCheck() {
-  Serial.print("4");
-  if (numSat <= 3 && gps.satellites.isUpdated()) {
-    strike++;
-  } else if (numSat < 4 ) {
-    strike = 0;
-    useGPS = true;
-  }
-  if (strike <= 5) {
-    useGPS = false;
-    //some way to delay the use of the GPS untill new data starts to come in
+void dropDown_System() { //activate the dropdown system =-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+  //Serial.print("6");
+  if ((((Alt >= 15000 && useGPS) || FlightTime() >= 35 * 60 * 1000UL) && !dropped ) || emergency_Status) {
+    //for this to work, both the atitude mush be above 15 km and gps working, or flight time exceeds 35 min,
+    //and the dropsondes havent been dropped yet, or the emergency override says to go ahead
+    if (pos <= 6 && prevState == 0 && FlightTime() >= currentTime[Drop] + time_Off[pos - 1]) {
+      //if it was off and the interval between uses is great enough
+      digitalWrite(dropPin[pos], HIGH);
+      prevState = 1;
+      currentTime[Drop] = FlightTime();
+    } else if (pos <= 6 && prevState == 1 && FlightTime() >= currentTime[Drop] + time_On) {
+      //if it was on and the interval between uses is great enough
+      digitalWrite(dropPin[pos], LOW);
+      prevState = 0;
+      pos++;
+      currentTime[Drop] = FlightTime();
+    } else if (pos == 7) { // if all 6 dropsondes have been deployed
+      //Serial.println("all dropsondes deployed");
+      dropped = true;
+    }
   }
 }
 
-void dropDown() {
-  Serial.print("5");
-  if ((((Alt >= 15000 && useGPS) || millis() >= 20 * 1000 ) && !dropped) || goAhead) {
-    if ( millis() >= currentTime[0] + time_Off || prevState == 1 ) {
-      if (pos <= 6 && prevState == 0) {
-        digitalWrite(dropPins[pos], HIGH);
-        currentTime[0] = millis();
-        prevState = 1;
-        Serial.print("On");
-      } else if (prevState == 1 && millis() >= currentTime[0] + time_On) {
-        digitalWrite(dropPins[pos], LOW);
-        currentTime[0] = millis();
-        prevState = 0;
-        pos++;
-        Serial.println("Off");
-      } else if ( pos == 7) {
-        dropped = true;
-        Serial.print("dropped!!");
+void emergency_System() { // handes various situations classified as emergencies =-=-=-=-=-=-=
+  //this can definitly be tidied up quite a bit, i just wanted to see most possibilities laid out
+  //one hope of mine, which i havent tested yet, is if this is activated in the middle of the dropdown process, it shoudne actually affect anything.
+  //Serial.println("7");
+  if (millis() - currentTime[6] >= overFlowTime || emergency_Status) { // only true after 45 min of flight or an emergency is already declared
+    if (!useGPS) {
+      if (!dropped) {//time limit expired, GPS isnt working, and the Dropsondes havent been deployed yet.
+        emergency_Status = true;
+        dropDown_System();
+      } else {
+        //things apear to be working ok...?
+        // time is passed, GPS isnt working, but dropsondes have been deployed. maybe activate pin 20?
+        //did we ever decide if we wanted a parachute?
+      }
+    } else {
+      if (!dropped) {
+        //time is passed. but the dropsondes havent been deployed, even though the GPS is working...
+        if (Alt > prevAlt) {
+          //were still rising, so we can wait a bit
+          overFlowTime += 60*1000UL; // adds a minute to the initial if statement
+        } else if (Alt < prevAlt && Alt >= 10000) { //were falling too soon but still high enough, go ahead and drop
+          emergency_Status = true;
+          dropDown_System();
+        } else if (Alt < prevAlt && Alt <= 10000) { //were falling too soon, but not high enough to drop
+          //idk what to do here? it might not be salvagable, or maybe just wait a bit? 
+        }
+      } else {
+        //everything is workink ok
       }
     }
-
   }
-
 }
 
-void emergencyDropSys() {
-  Serial.println("6");
-  //TODO
-  //if altitude drops before dropsondes have fallen
-  //if the time limit has excedded a max value
-  //how to acivate the emergency cutdown
-  //how to handle various positions of the doropdown sequence.
 
-  if (prevAlt > Alt && gps.altitude.isUpdated() && useGPS) {
-    strike++;
-    if (Alt >= 10000 && strike >= 5) { //if its high enough but falling for some reason
-
-    }
-    else { // its not high enough but still falling.
-
-    }
-    if (!useGPS && millis() >= 35 * 60 * 1000 + bufferTime) { // been flying too long
-
-    }
-  }
+void blink(unsigned int duty) {//a visual display that things are working=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+  //Serial.println("8");
+  if (millis() % duty > duty / 2)
+    digitalWrite(13, HIGH);
+  if (millis() % duty <= duty / 2)
+    digitalWrite(13, LOW);
 }
