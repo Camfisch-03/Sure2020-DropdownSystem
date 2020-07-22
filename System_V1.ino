@@ -3,7 +3,6 @@
 //v2, started: 7/20/20
 
 //TODO//=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-//add a function to write to EEPROM for saving values
 //tidy up the emergency system ,as well as fugure out more of what is has to do
 //do some tests to make sure at least the concepts work
 //just generally tidy everything up
@@ -17,22 +16,20 @@
 
 //Declare global Variables=-=-=-=-=-=-=-=-=--=-=-=-=-=-=
 unsigned long currentTime[] = {0, 0, 0, 0, 0, 0, 0};
-byte GPS = 0, Drop = 1, numSat, count = 0;
+byte GPS = 0, Drop = 1, count = 0;
 const int dropPin[] = {20, 14, 15, 16, 17, 18, 19};
 byte pos = 1, prevState = 0;
 bool flight_begun = false, dropped = false, newData = false, useGPS = true, emergency_Status = false;
-unsigned long time_On = 10000, time_Off[] = {20000, 20000, 40000, 20000, 20000, 20000}; // edit here for delay times
+unsigned long time_On = 10000, time_Off[] = {0, 20000, 20000, 40000, 20000, 20000, 0}; // edit here for delay times in millis leave the first and last 0s alone
 unsigned long overFlowTime = 45*60*1000;
-float Lat, Lon, prevAlt, Alt;
+float GPSdata[] = {0, 0, 0, 0, 0, 0, 0};
+byte Lat = 0, Lon = 1, Alt = 2, prevAlt = 3, numSat = 4;
 uint32_t utcTime;
-
-
 
 
 ////GPS declaration=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 TinyGPSPlus gps;
 SoftwareSerial ss(0, 1); //RX 0, TX 1
-
 
 
 void setup() {  //Setup=-=-=-=-=-=-=-=-=-==-=-=-=-=-=-=-=-=-=-=-=-=
@@ -46,22 +43,20 @@ void setup() {  //Setup=-=-=-=-=-=-=-=-=-==-=-=-=-=-=-=-=-=-=-=-=-=
   //serial/ ports//////
   Serial.begin(9600);
   ss.begin(9600);
-
 }
-
 
 
 void loop() {////main loop=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
   while (!flight_begun) { // preflight procedure, only ends once flight has begin
     pre_Flight_System();
 
-    if (Alt > prevAlt && gps.altitude.isUpdated()) { // some condition so signal the beginning of the flight
+    if (GPSdata[Alt] > GPSdata[prevAlt] && gps.altitude.isUpdated()) { // some condition so signal the beginning of the flight
+                          // no clue if the .isUpdated() function wroks or if it even does what i think
       count++;
       if (count >= 5) { //if the GPS is reading an increase in altitude for 5 consecutive updates
         flight_begun = true;
       }
-
-    } else if (prevAlt > Alt && gps.altitude.isUpdated()) { // no clue if the .isUpdates() function wroks or if it even does what i think
+    } else if (GPSdata[prevAlt] > GPSdata[Alt] ) { 
       count = 0;
     }
     currentTime[6] = millis(); // used later for the flightTime function
@@ -78,12 +73,16 @@ void loop() {////main loop=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
     if (FlightTime() - currentTime[GPS] > 5000UL) { // 5 seconds go by with no new GPS data
       GPSFailureCheck();
     }
+    if((FlightTime() % 60*1000UL) == 0 && useGPS){// every minute the gps is functioning properly
+      for(int i = 0; i <= 5; i++){
+        EEPROM.write(i, GPSdata[i]);
+      }
+    }
 
     dropDown_System();
 
     //it should be ok to run this every cycle, or maybe i can just run it once per second untill something happens?
     emergency_System();
-
 
   }
 
@@ -118,27 +117,27 @@ void FeedGPS() { // see if the GPS has any new data =-=-=-=-=-=-=-=-=--=-=-=-=-=
 void getGPSdata() { // parse any new data the GPS has =-=-=-=-=-=-=-=-=-=-=-=-=-=-=
   //Serial.print("3");
   if (newData) { // if there is new data
-    Lat = gps.location.lat(); //latitude
-    Serial.print("LAT="); Serial.print(Lat, 6);
-    Lon = gps.location.lng(); //longitude
-    Serial.print("LNG="); Serial.println(Lon, 6);
-    prevAlt = Alt; // used for change in altitude
-    Alt = gps.altitude.meters(); // altitude
-    Serial.print("ALT="); Serial.println(Alt);
-    numSat = gps.satellites.value();  //number of satalites used for calculations
-    Serial.print("Num Sat="); Serial.println(numSat);
+    GPSdata[Lat] = gps.location.lat(); //latitude
+    Serial.print("\nLAT = "); Serial.println(GPSdata[Lat], 6);
+    GPSdata[Lon] = gps.location.lng(); //longitude
+    Serial.print("LNG = "); Serial.println(GPSdata[Lon], 6);
+    GPSdata[prevAlt] = GPSdata[Alt]; // used for change in altitude
+    GPSdata[Alt] = gps.altitude.meters(); // altitude
+    Serial.print("ALT = "); Serial.println(GPSdata[Alt]);
+    GPSdata[numSat] = gps.satellites.value();  //number of satalites used for calculations
+    Serial.print("Num  Sat =  "); Serial.println(GPSdata[numSat]);
     utcTime = gps.time.value(); //global standard time
-    Serial.print("UTC time ="); Serial.println(utcTime);
-
+    Serial.print("UTC time =  "); Serial.println(utcTime);
+    Serial.println(" ");
     newData = false; // all new data has been parsed
   }
 }
 
 void satCheck(){ //checks to see how many satalites are present and if the GPS data is reliable
   //Serial.print("4");
-  if(numSat <=3 && gps.satellites.isUpdated()){ // a GPS needs at least 3 satalites to work, but is only accurate with 4 or more
+  if(GPSdata[numSat] <=3 && gps.satellites.isUpdated()){ // a GPS needs at least 3 satalites to work, but is only accurate with 4 or more
     count++;
-  }else if(numSat >3){
+  }else if(GPSdata[numSat] >3){
     count = 0;
   }
   if(count >= 5){ // is 5 GPS updates go by and there are less that 4 satalites for each, dont rely on the GPS.
@@ -165,7 +164,7 @@ void GPSFailureCheck() { // check to see if there is a problem with the GPS=-=-=
 
 void dropDown_System() { //activate the dropdown system =-=-=-=-=-=-=-=-=-=-=-=-=-=-=
   //Serial.print("6");
-  if ((((Alt >= 15000 && useGPS) || FlightTime() >= 35 * 60 * 1000UL) && !dropped ) || emergency_Status) {
+  if ((((GPSdata[Alt] >= 15000 && useGPS) || FlightTime() >= 35 * 60 * 1000UL) || emergency_Status) && !dropped ) {
     //for this to work, both the atitude mush be above 15 km and gps working, or flight time exceeds 35 min,
     //and the dropsondes havent been dropped yet, or the emergency override says to go ahead
     if (pos <= 6 && prevState == 0 && FlightTime() >= currentTime[Drop] + time_Off[pos - 1]) {
@@ -189,7 +188,6 @@ void dropDown_System() { //activate the dropdown system =-=-=-=-=-=-=-=-=-=-=-=-
 void emergency_System() { // handes various situations classified as emergencies =-=-=-=-=-=-=
   //this can definitly be tidied up quite a bit, i just wanted to see most possibilities laid out
   //one hope of mine, which i havent tested yet, is if this is activated in the middle of the dropdown process, it shoudne actually affect anything.
-  // this section is probably gonna take the most thinking to finish
   //Serial.println("7");
   if (millis() - currentTime[6] >= overFlowTime || emergency_Status) { // only true after 45 min of flight or an emergency is already declared
     if (!useGPS) {
@@ -204,27 +202,25 @@ void emergency_System() { // handes various situations classified as emergencies
     } else {
       if (!dropped) {
         //time is passed. but the dropsondes havent been deployed, even though the GPS is working...
-        if (Alt > prevAlt) {
+        if (GPSdata[Alt] > GPSdata[prevAlt]) {
           //were still rising, so we can wait a bit
           overFlowTime += 60*1000UL; // adds a minute to the initial if statement
-        } else if (Alt < prevAlt && Alt >= 10000) { //were falling too soon but still high enough, go ahead and drop
+        } else if (GPSdata[Alt] < GPSdata[prevAlt] && GPSdata[Alt] >= 10000) { //were falling too soon but still high enough, go ahead and drop
           emergency_Status = true;
           dropDown_System();
-        } else if (Alt < prevAlt && Alt <= 10000) { //were falling too soon, but not high enough to drop
+        } else if (GPSdata[Alt] < GPSdata[prevAlt] && GPSdata[Alt] <= 10000) { //were falling too soon, but not high enough to drop
           //idk what to do here? it might not be salvagable, or maybe just wait a bit? 
         }
-      } else {
-        //everything is workink ok
-      }
+      } 
     }
   }
 }
 
 
-void blink(unsigned int duty) {//a visual display that things are working=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+void blink(unsigned int per) {//a visual display that things are working=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
   //Serial.println("8");
-  if (millis() % duty > duty / 2)
+  if (millis() % per > per / 2)
     digitalWrite(13, HIGH);
-  if (millis() % duty <= duty / 2)
+  if (millis() % per <= per / 2)
     digitalWrite(13, LOW);
 }
