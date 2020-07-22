@@ -10,12 +10,11 @@ unsigned int count = 0;
 const int dropPin[] = {20, 14, 15, 16, 17, 18, 19};
 byte pos = 1, prevState = 0;
 bool flight_begun = false, dropped = false, newData = false, useGPS = true, emergency_Status = false;
-unsigned long time_On = 5000, time_Off[] = {0, 5000, 500, 5000, 500, 5000, 0}; // edit here for delay times in millis
+unsigned long time_On = 7500, time_Off[] = {0, 10000, 500, 5000, 500, 5000, 0}; // edit here for delay times in millis
 unsigned long overFlowTime = 45 * 60 * 1000;
 float GPSdata[] = {0, 0, 0, 0, 0, 0, 0}, temp = 0;
 byte Lat = 0, Lon = 1, Alt = 2, prevAlt = 3, numSat = 4;
 uint32_t utcTime;
-uint8_t
 
 
 
@@ -33,14 +32,15 @@ void setup() {  //Setup=-=-=-=-=-=-=-=-=-==-=-=-=-=-=-=-=-=-=-=-=-=
   } // pin 0 is only for the emergency drop system. 1-6 are the dropsondes, hence why pos = 1.
   pinMode(13, OUTPUT); //LED on pin 13 for some visual feedback
   pinMode(11, INPUT); // this is for a button so i can interact with the system. i need to remember to add a resistor to ground after the button to avout current leakage...
+ 
   //serial/ ports//////
   Serial.begin(9600);
   ss.begin(9600);
 }
 
 
-void loop() {
-  while (!flight_begun) {
+void loop() {// main loop =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+  while (!flight_begun) {// loop that runs during the setup period, before weve launched it =-=-=-=-=-=-=-=-=-=-=
     pre_Flight_System();
     while (digitalRead(11) == HIGH) { //the code should come to a semi-hault while this is true
       newData = true;
@@ -105,7 +105,7 @@ void dropDown_System() { //activate the dropdown system =-=-=-=-=-=-=-=-=-=-=-=-
       Serial.print("ALT = "); Serial.println(GPSdata[Alt]);
       Serial.print("Num  Sat = "); Serial.println(GPSdata[numSat]);
       Serial.print("UTC time = "); Serial.println(utcTime);
-      Serial.println("Cool ");
+      Serial.println("Cool! ");
     }
   }
 }
@@ -134,7 +134,7 @@ unsigned long FlightTime() {// returns the flight time in millis =-=-=-=-=-=-=-=
 
 void FeedGPS() { // see if the GPS has any new data =-=-=-=-=-=-=-=-=--=-=-=-=-=-=
   //Serial.print("2");
-  while (ss.available() > 0) {  //while there is new data
+  while (ss.available() > 0) {  //while there is new data. not gonna be true for this testing
     gps.encode(ss.read());  //send that new data to the GPS encoder to be read in getGPSdata()
     newData = true; //there is new data
     useGPS = true; // the GPS is working properly
