@@ -1,4 +1,3 @@
-
 ////Libraries=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 #include <TinyGPS++.h>
 #include <SoftwareSerial.h>
@@ -13,10 +12,10 @@ byte pos = 1, prevState = 0;
 bool flight_begun = false, dropped = false, newData = false, useGPS = true, emergency_Status = false;
 unsigned long time_On = 5000, time_Off[] = {0, 5000, 500, 5000, 500, 5000, 0}; // edit here for delay times in millis
 unsigned long overFlowTime = 45 * 60 * 1000;
-float GPSdata[] = {0, 0, 0, 0, 0, 0, 0};
+float GPSdata[] = {0, 0, 0, 0, 0, 0, 0}, temp = 0;
 byte Lat = 0, Lon = 1, Alt = 2, prevAlt = 3, numSat = 4;
 uint32_t utcTime;
-
+uint8_t
 
 
 
@@ -37,7 +36,6 @@ void setup() {  //Setup=-=-=-=-=-=-=-=-=-==-=-=-=-=-=-=-=-=-=-=-=-=
   //serial/ ports//////
   Serial.begin(9600);
   ss.begin(9600);
-
 }
 
 
@@ -47,20 +45,35 @@ void loop() {
     while (digitalRead(11) == HIGH) { //the code should come to a semi-hault while this is true
       newData = true;
     } //then once its false, only then, should it continue on... right?
-    if (millis() >= 10000) {  // just an artifical way to start the dropdown system
-      flight_begun = true;
+    if (GPSdata[Alt] > GPSdata[prevAlt] && GPSdata[prevAlt] != temp) { // some condition so signal the beginning of the flight
+      temp = GPSdata[prevAlt];
+      count++;
+      Serial.println(count);
+      if (count >= 3) { //if the GPS is reading an increase in altitude for 3 consecutive updates
+        flight_begun = true;
+      }
+
+    } else if (GPSdata[prevAlt] > GPSdata[Alt]) { // no clue if the .isUpdates() function wroks or if it even does what i think
+      
+      count = 0;
     }
     currentTime[6] = millis(); // this is used to evaluate FlightTime(), and currentTime[6] shouldn't written to anywhere else
   }
   Serial.println("\nflight has begun!");
-
+ 
   while (1) {
     //Serial.print("1");
-    //if(digitalRead(11) == HIGH){
-     // emergency_Status = true;  //artificiall create an emergency to forcefully start the dropdown sequence
-    //}
+    if(digitalRead(11) == HIGH){
+      emergency_Status = true;  //artificiall create an emergency to forcefully start the dropdown sequence
+      Serial.println("Emergency!");
+    }
     dropDown_System();
-    blink(1000);
+    if(!dropped)
+      blink(1000);
+    else
+      digitalWrite(13, LOW);
+    
+    
 
 
   }
@@ -68,7 +81,7 @@ void loop() {
 
 void dropDown_System() { //activate the dropdown system =-=-=-=-=-=-=-=-=-=-=-=-=-=-=
   //Serial.print("6");
-  if ((((GPSdata[Alt] >= 15000 && useGPS) || FlightTime() >= 10 * 1000) || emergency_Status) && !dropped) { // after 10 seconds of run time
+  if ((((GPSdata[Alt] >= 15000 && useGPS) || FlightTime() >= 30 * 1000) || emergency_Status) && !dropped) { // after 10 seconds of run time
     //for this to work, both the atitude mush be above 15 km and gps working, or flight time exceeds 35 min,
     //and the dropsondes havent been dropped yet, or the emergency override says to go ahead
     if (pos <= 6 && prevState == 0 && millis() >= currentTime[Drop] + time_Off[pos - 1]) {
@@ -138,7 +151,8 @@ void getGPSdata() { // parse any new data the GPS has =-=-=-=-=-=-=-=-=-=-=-=-=-
     GPSdata[Lon] = gps.location.lng(); //longitude
     Serial.print("LNG = "); Serial.println(GPSdata[Lon], 6);
     GPSdata[prevAlt] = GPSdata[Alt]; // used for change in altitude
-    GPSdata[Alt] = gps.altitude.meters(); // altitude
+    //GPSdata[Alt] = gps.altitude.meters(); // altitude
+    GPSdata[Alt] = (analogRead(21)) * 10UL;
     Serial.print("ALT = "); Serial.println(GPSdata[Alt]);
     GPSdata[numSat] = gps.satellites.value();  //number of satalites used for calculations
     Serial.print("Num  Sat =  "); Serial.println(GPSdata[numSat]);
