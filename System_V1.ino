@@ -83,7 +83,7 @@ void loop() {////main loop=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
   currentTime[GPS] = FlightTime(); // reset GPS time for continuity's sake. and GPSFailureCheck
   //numPass = 0;
 
-  while (1 == 1) { // primary functionality, once flight begins =-=-=-=-=-=-=-=
+  while (1 == 1) { // primary functionality, once flight begins =-=-=-=-=-=-=-=-=-=-=-=-=-=
     FeedGPS();
     getGPSdata();
 
@@ -104,8 +104,8 @@ void loop() {////main loop=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
       pass = false;
 
     }//end elseif
-  //Serial.print("Time: "); Serial.print(millis()); Serial.print(" pass number: "); Serial.println(numPass);
-  //numPass++;
+    //Serial.print("Time: "); Serial.print(millis()); Serial.print(" pass number: "); Serial.println(numPass);
+    //numPass++;
   }//ens while
 
 }//end loop
@@ -129,7 +129,7 @@ void FeedGPS() { // see if the GPS has any new data =-=-=-=-=-=-=-=-=--=-=-=-=-=
   while (ss.available() > 0) {  //while there is new data
     gps.encode(ss.read());  //send that new data to the GPS encoder to be read in getGPSdata()
     newData = true; //there is new data
-    //useGPS = true; // the GPS is working properly, but here isnt the place to be setting/resetting this. 
+    //useGPS = true; // the GPS is working properly, but here isnt the place to be setting/resetting this.
     currentTime[GPS] = FlightTime();
   }//end while
 
@@ -163,11 +163,11 @@ void satCheck() { //checks to see how many satalites are present and if the GPS 
   } //end if
   else if (GPSdata[numSat] > 3) { // if there are more then 3 satalites in the check
     count = 0;  //reset the count
-    useGPS = true; // thigs are going smoothly, so use the GPS. 
+    useGPS = true; // thigs are going smoothly, so use the GPS.
   }//end elseif
   if (count >= 5) { // if 5 GPS updates go by and there are less that 4 satalites for each, dont rely on the GPS.
     //Serial.println("not enough satalites for accurate positioning");
-    useGPS = false; // for now, don't rely on the GPS for positioning untill the system resets. 
+    useGPS = false; // for now, don't rely on the GPS for positioning untill the system resets.
   }//end if
 
 }//end satCheck
@@ -200,7 +200,7 @@ void dropDown_System() { //activate the dropdown system =-=-=-=-=-=-=-=-=-=-=-=-
       prevState = 1;
       currentTime[Drop] = FlightTime();
     } //end if
-    else if (pos <= 6 && prevState == 1 && FlightTime() >= currentTime[Drop] + time_On) { // was on, nw it should be off
+    else if (pos <= 6 && prevState == 1 && FlightTime() >= currentTime[Drop] + time_On) { // was on, now it should be off
       //if it was on and the interval between uses is great enough
       digitalWrite(dropPin[pos], LOW);
       prevState = 0;
@@ -224,6 +224,7 @@ void emergency_System() { // handes various situations classified as emergencies
     if (!useGPS && !dropped) { // GPS is giving a bad signal and dropsondes havent been dropped yet. (shouldnt technically reach here, but still)
       emergency_Status = true;
       dropDown_System();
+      ECutDown();
     } //end if
     else if (useGPS && !dropped) { // GPS is good, but we havent dropped for some reason
       if (GPSdata[Alt] >= GPSdata[prevAlt]) { // we're still going up
@@ -233,15 +234,10 @@ void emergency_System() { // handes various situations classified as emergencies
         if (GPSdata[Alt] >= 10000) { // but were high enough to drop and still get some data. *height subject to change.*
           emergency_Status = true; // there is a viable emergency
           dropDown_System();  //start the dropdown system
-          if (pos == 7 && !ended) { // if all of the dropsondes have been deployed. activate the emergency cut down system. make sure the fight ends now
-            digitalWrite(dropPin[0], HIGH); // turn pin 20 on (emergency sut down system)
-            delay(15000); //wait 15 seconds
-            digitalWrite(dropPin[0], LOW);  // turn pin 20 off
-            ended = true; //end this system
-          }
+          ECutDown();//initiate the emergency cutdown to terminate flight. after all dropsondes have been released. 
         }   //end if
         else { // were not high enough to even get a decent amount of data
-          maxFlightTme += 60 * 1000UL; // hope this is a mistake and just wait a bit. maybe something will change??
+          maxFlightTme += 60 * 1000UL; // hope this is a mistake and just wait a minute. maybe something will change??
           //this is kind of the worst scinario.
         }//end else
       }//end else
@@ -257,7 +253,7 @@ void emergency_System() { // handes various situations classified as emergencies
 }// end emergency_System
 
 
-void blink(unsigned int per) {//a visual display that things are working=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+void blink(unsigned int per) {//a visual display that things are working=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
   //Serial.println("8");
   if (millis() % per >= per / 2)
     digitalWrite(13, HIGH);
@@ -271,3 +267,12 @@ void saveData(int adr) { // save some data for possible later use=-=-=-=-=-=-=-=
   EEPROM.write(adr - 1, pos); // should usually be a 1 unless the dropdown system has started.
 
 }//end saveData
+
+void ECutDown() { //handles the emercency cut down system. =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+  if (pos == 7 && !ended) { // if all of the dropsondes have been deployed. activate the emergency cut down system. make sure the fight ends now
+    digitalWrite(dropPin[0], HIGH); // turn pin 20 on (emergency sut down system)
+    delay(15000); //wait 15 seconds
+    digitalWrite(dropPin[0], LOW);  // turn pin 20 off
+    ended = true; //end this system
+  }//end if
+}//end ECutDown
