@@ -43,7 +43,7 @@ public class ang_dist_calc_v1 {
 		
 		//calculate angle above horizon
 		double beta = Math.acos((a*a+c*c-b*b)/(2*a*c)); //solve for the angle of beta
-		double deg = -90 + beta*(180/Math.PI);	//beta relative to the horizontal
+		double deg = beta*(180/Math.PI) - 90;	//beta relative to the horizontal
 		System.out.println(deg + " Degrees above the horizon");
 		
 		//calculate absolute distance from point to point
