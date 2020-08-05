@@ -5,7 +5,7 @@ public class ang_dist_calc_v1 {
 
 	public static void main(String[] args) {
 		// define constant values
-		double r_earth = 6371000.0;
+		double r_earth = 6371000.0;	//radius in meters of earth
 
 		// set position data
 		double lat1 = 42.036256; // latitude of position 1
@@ -51,7 +51,7 @@ public class ang_dist_calc_v1 {
 		System.out.println(c + " meters away by a straight line");
 		
 		//calculate distance away by land
-		System.out.println( r_earth * gamma + " meters away by land");
+		System.out.println( r_earth * gamma + " meters away by land"); //raduis times angle is arclength
 		
 
 	}
