@@ -1,29 +1,19 @@
-////Libraries=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+////Libraries------------------------------------------------------------------
 #include <TinyGPS++.h>
 #include <SoftwareSerial.h>
 #include <EEPROM.h>
 
-
-// Program variables ----------------------------------------------------------
-int exampleVariable = 0;
-int sensorPin = A0;
-
 // Serial data variables ------------------------------------------------------
-//Incoming Serial Data Array
 const byte kNumberOfChannelsFromExcel = 10;
-
-// Comma delimiter to separate consecutive data if using more than 1 sensor
-const char kDelimiter = ',';
-// Interval between serial writes
+const char kDelimiter = ',';  // Comma delimiter to separate consecutive data if using more than 1 sensor
 const int kSerialInterval = 1000; //edit this for how often excel samples for new data (milliseconds)
-// Timestamp to track serial interval
-unsigned long serialPreviousTime;
-float GPSdata[] = {0, 0, 0, 0, 0, 0, 0}, temp = 0;
+unsigned long serialPreviousTime; // Timestamp to track serial interval
+float GPSdata[] = {0, 0, 0, 0, 0, 0, 0};
 byte Lat = 0, Lon = 1, Alt = 2, prevAlt = 3, numSat = 4;
 uint32_t utcTime;
 char* arr[kNumberOfChannelsFromExcel];
 
-
+//setup gps ports ------------------------------------------------------------
 TinyGPSPlus gps;
 SoftwareSerial ss(0, 1); //RX 0, TX 1
 
@@ -56,7 +46,7 @@ void loop()
   //   }
 }
 
-void FeedGPS() { // see if the GPS has any new data =-=-=-=-=-=-=-=-=--=-=-=-=-=-=
+void FeedGPS() { // see if the GPS has any new data ---------------------------
   //Serial.print("2");
   while (ss.available() > 0) {  //while there is new data.
     gps.encode(ss.read());  //send that new data to the GPS encoder to be read in getGPSdata()
@@ -74,15 +64,11 @@ void processSensors()
 
 }
 
-// Add any specialized methods and processing code below
-
 
 // OUTGOING SERIAL DATA PROCESSING CODE----------------------------------------
 void sendDataToSerial()
 {
-  // Send data out separated by a comma (kDelimiter)
-  // Repeat next 2 lines of code for each variable sent:
-
+ //add a delimeter print after each piece of data
   Serial.print(GPSdata[Lat], 8);
   Serial.print(kDelimiter);
   Serial.print(GPSdata[Lon], 8);
@@ -97,9 +83,6 @@ void sendDataToSerial()
   Serial.println(); // Add final line ending character only once
 }
 
-//-----------------------------------------------------------------------------
-// DO NOT EDIT ANYTHING BELOW THIS LINE
-//-----------------------------------------------------------------------------
 
 // OUTGOING SERIAL DATA PROCESSING CODE----------------------------------------
 void processOutgoingSerial()
