@@ -7,4 +7,6 @@ Files here/ to be made:
 
 .ino ardiono ide files for the code of the Teensy 4.0
 
-.java for java files (which will probably be changed to .py python file later)
+.java for java files 
+
+.py and .ipynb for python files of various miscellaneous systems
