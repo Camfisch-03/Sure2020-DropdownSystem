@@ -5,7 +5,7 @@ public class ang_dist_calc_v1 {
 
 	public static void main(String[] args) {
 		// define constant values
-		double r_earth = 6371000.0;	//radius in meters of earth
+		double r_earth = 6371000.0;
 
 		// set position data
 		double lat1 = 42.036256; // latitude of position 1
@@ -43,7 +43,7 @@ public class ang_dist_calc_v1 {
 		
 		//calculate angle above horizon
 		double beta = Math.acos((a*a+c*c-b*b)/(2*a*c)); //solve for the angle of beta
-		double deg = beta*(180/Math.PI) - 90;	//beta relative to the horizontal
+		double deg = beta*(180/Math.PI) - 90 ;	//beta relative to the horizontal
 		System.out.println(deg + " Degrees above the horizon");
 		
 		//calculate absolute distance from point to point
@@ -51,7 +51,7 @@ public class ang_dist_calc_v1 {
 		System.out.println(c + " meters away by a straight line");
 		
 		//calculate distance away by land
-		System.out.println( r_earth * gamma + " meters away by land"); //raduis times angle is arclength
+		System.out.println( r_earth * gamma + " meters away by land");
 		
 
 	}

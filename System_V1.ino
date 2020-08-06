@@ -59,8 +59,7 @@ void setup() {  //Setup=-=-=-=-=-=-=-=-=-==-=-=-=-=-=-=-=-=-=-=-=-=
 
 void loop() {////main loop=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
   while (!begun) { // preflight procedure, only ends once flight has begin
-    pre_Flight_System(); // send to the preflight function
-
+    FeedGPS();//recieve any incoming data
     if ((GPSdata[Alt] > GPSdata[prevAlt] && gps.altitude.isUpdated()) || GPSdata[Alt] >= 500) { // some condition so signal the beginning of the flight
       // no clue if the .isUpdated() function wroks or if it even does what i think
       //im gonna leave this how it is for now, but ill come back and edit how the flight system should begin
@@ -74,6 +73,8 @@ void loop() {////main loop=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
     } // end elseif
     //Serial.print("Time: "); Serial.print(millis()); Serial.print(" pass number: "); Serial.println(numPass);
     //numPass++;
+   getGPSdata();  //parse the data into usable chunks
+   blink(2000); //blink at a rate of 2 seconds to signify were working
   }// end while
   if (count >= 1) // only set right after preflight system runs, otherwise set during setup
     currentTime[6] = millis(); // used for the FlightTime function
@@ -110,14 +111,6 @@ void loop() {////main loop=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 
 }//end loop
 
-void pre_Flight_System() { //stuff to do before the flight begins =-=-=-=-=-=-=-=-=-=-=-=-=
-  //Serial.print("1");
-  FeedGPS(); // see if the GPS has any new data
-  getGPSdata(); //try and parse any new data
-  blink(2000);  //just a simple slow blink so signify its on and running.
-
-}//end Pre_Flight_System
-
 
 unsigned long FlightTime() {// returns the flight time in millis =-=-=-=-=-=-=-=-=-=-=-=-=-=
   unsigned long t = millis() - currentTime[6];
@@ -138,7 +131,8 @@ void FeedGPS() { // see if the GPS has any new data =-=-=-=-=-=-=-=-=--=-=-=-=-=
 
 void getGPSdata() { // parse any new data the GPS has =-=-=-=-=-=-=-=-=-=-=-=-=-=-=
   //Serial.print("3");
-  if (newData) { // if there is new data
+  if (gps.location.isUpdated()) { // has the location been updated
+    satCheck(); // check the ststus of satalites
     GPSdata[Lat] = gps.location.lat(); //update latitude
     //Serial.print("\nLAT = "); Serial.println(GPSdata[Lat], 6);
     GPSdata[Lon] = gps.location.lng(); //update longitude
@@ -151,7 +145,6 @@ void getGPSdata() { // parse any new data the GPS has =-=-=-=-=-=-=-=-=-=-=-=-=-
     utcTime = gps.time.value(); //update global standard time
     //Serial.print("UTC time =  "); Serial.println(utcTime);
     //Serial.println(" ");
-    satCheck(); // check the ststus of satalites
     newData = false; // all new data has been parsed
   }// end if
 }// end getGPSdata
