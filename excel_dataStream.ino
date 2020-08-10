@@ -39,14 +39,10 @@ void loop()
   // Process and send data to Excel via serial port (Data Streamer)
   processOutgoingSerial();
 
-
-  // Compares STR1 to STR2 returns 0 if true.
-  //   if ( strcmp ("Apple", arr[0]) == 0){
-  //       Serial.println("working");
-  //   }
 }
 
-void FeedGPS() { // see if the GPS has any new data ---------------------------
+// see if the GPS has any new data --------------------------------------------
+void FeedGPS() { 
   //Serial.print("2");
   while (ss.available() > 0) {  //while there is new data.
     gps.encode(ss.read());  //send that new data to the GPS encoder to be read in getGPSdata()
