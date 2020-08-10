@@ -51,7 +51,7 @@ void setup() {
     EEPROM.write(FTaddr - 1, pos); //reasign it to 1, because this is the starting value for pos.
   }//end if
 
-  if (EEPROM.read(FTaddr) > 0) { //if previous flight time is a value greater than 0
+  if (EEPROM.read(FTaddr) > 0) { //if previous flight time is a value greater than 0, meaning there was a flight happening. 
     currentTime[6] = -1 * (EEPROM.read(FTaddr) * 30000L); // negative to add to millis rather than detract
     begun = true; // skip the preflight system.
     pos = EEPROM.read(FTaddr - 1); //assign any pervious value of pos to the current pos
@@ -66,7 +66,7 @@ void loop() {
 
     if ((GPSdata[Alt] > GPSdata[prevAlt] && GPSdata[prevAlt] != tempAlt) || GPSdata[Alt] >= minAlt) { //if the GPS is ascending, or above minAlt
       tempAlt = GPSdata[prevAlt]; //assign previous alt to temp alt for comparison, to make the above statement only work once per update
-      count1++; //increment count1
+      count1++; 
       if (count1 >= 30) { //if the GPS is reading an increase in altitude for 30 consecutive updates, or practically instantly if the alt is above minAlt
         begun = true;//start the main flight system
 
@@ -85,8 +85,8 @@ void loop() {
   if (count1 >= 1) {// only set right after preflight system runs, otherwise set during setup
     begun = false; //reset for later use
     currentTime[6] = millis(); // used for the FlightTime function
-  } else {
-    begun = EEPROM.read(FTaddr - 2);
+  } else {//if the preflight system was skipped
+    begun = EEPROM.read(FTaddr - 2);  //reasign the value of begun to its value during the previous flight
   }
   digitalWrite(13, LOW); // stop blinking as flight has begin
   currentTime[GPS] = FlightTime(); // reset GPS time for continuity's sake. and GPSFailureCheck
@@ -97,18 +97,17 @@ void loop() {
     FeedGPS();  //look for incoming info from the GPS
 
     if (FlightTime() - currentTime[GPS] > 5000UL) { // 5 seconds go by with no new GPS data
-      GPSFailureCheck();  //check to see if i can fix the issue
+      GPSFailureCheck();  //check to see if i can fix any issue with the GPS
     }// end if
 
     dropDown_System(); //check to see if dropsondes can be released
-    //should be good ro run everytime
 
     if (FlightTime() % 1000UL == 0 || emergency_Status) // runs 1/1000 as often as dropdown_System and feedGPS
       emergency_System(); //checks for emergencies, and if it can handle them
 
     getGPSdata(); //parse data into usable chunks
 
-    saveData(FTaddr); //save flighttime and pos to memory
+    saveData(FTaddr); //save flighttime and pos to memory ocasionally
 
   }//ens while(1==1)
 
@@ -129,7 +128,7 @@ void FeedGPS() {
     newData = true; //there is new data (unused var)
 
   }//end while
-  if (gps.altitude.age() >= 5000UL && gps.location.age() >= 5000UL) { //if neither altitude or location have been updated within 5 seconds
+  if (gps.altitude.age() >= 5000UL && gps.location.age() >= 5000UL) { //if neither altitude or location have been updated within 5 seconds (redundant check)
     useGPS = false; //dont use GPS for dropdown process
     GPSFailureCheck();  //send system to try and amend GPS issue
   }
@@ -164,7 +163,7 @@ void satCheck() {
     count = 0;  //reset the count
     useGPS = true; // thigs are going smoothly, so use the GPS.
   }//end elseif
-  if (count >= 5) { // if 5 GPS updates go by and there are less that 4 satalites for each, dont rely on the GPS.
+  if (count >= 5) { // if 5 GPS updates go by and there are less that 4 satalites for each
     useGPS = false; // for now, don't rely on the GPS for positioning
   }//end if
 
@@ -199,9 +198,9 @@ void dropDown_System() {
 
     if (pos <= 6 && prevState == 0 && FlightTime() >= currentTime[Drop] + time_Off[pos - 1]) { // was off for specified time, now it should be on
       //if it was off and the interval between uses is great enough
-      digitalWrite(dropPin[pos], HIGH);
-      if (pos == 1) {
-        EEPROM.write(FTaddr - 2, begun);
+      digitalWrite(dropPin[pos], HIGH); //turn on the pin at pos
+      if (pos == 1) { //if this is the first time through the system
+        EEPROM.write(FTaddr - 2, begun);  //assign the value of begun to memory for possible later use
       }
       prevState = 1;  //system is currently on
       currentTime[Drop] = FlightTime(); //reasign drop time for comparisons
@@ -209,17 +208,17 @@ void dropDown_System() {
 
     else if (pos <= 6 && prevState == 1 && FlightTime() >= currentTime[Drop] + time_On) { // was on, now it should be off
       //if it was on and the interval between uses is great enough
-      digitalWrite(dropPin[pos], LOW);
+      digitalWrite(dropPin[pos], LOW);  //turn off the pin at pos
       prevState = 0;  //system is now off
-      pos++;
+      pos++;  //go to the next pos
       currentTime[Drop] = FlightTime();
     } //end elseif
 
-    else if (pos == 7 && FlightTime() >= currentTime[Drop] + time_Off[pos - 1]) { //all 6 dropsondes have been deployed
-      dropped = true; // the moment this becomes true, the dropdown_system cannot run again.
-      begun = false; // reset for use in other systems
+    else if (pos == 7 && FlightTime() >= currentTime[Drop] + time_Off[pos - 1]) { //all 6 dropsondes have been deployed and the wait is long enough
       ECutDown(); // activate cutdown system to end the flight here
-      EEPROM.write(FTaddr - 2, begun);
+      dropped = true; // the moment this becomes true, the dropdown_system cannot run again.
+      begun = false; // reset for use in other system
+      EEPROM.write(FTaddr - 2, begun);  //reasign the new value of begun to memory. 
 
     }//end elseif
 
@@ -234,7 +233,7 @@ void emergency_System() {
   if (millis() - currentTime[6] >= maxFlightTime) { // if flight time has exceeded the max desired time, or an emergency is already declared
     if (!useGPS && !dropped) { // GPS is giving a bad signal and dropsondes havent been dropped yet. (shouldnt technically reach here, but still)
       emergency_Status = true;  //declare an emergency
-      dropDown_System();  //send system to start dropsown function
+      dropDown_System();  //send system to start dropdown function
     } //end if
     else if (useGPS && !dropped) { // GPS is good, but we havent dropped for some reason
       if (GPSdata[Alt] >= GPSdata[prevAlt] && gps.altitude.isValid()) { // we're still going up
@@ -282,26 +281,26 @@ void blink(unsigned int per) {  //per is the period of blinking
 
 // save some data for possible later use-------------------------------------------------------------
 void saveData(int adr) {  //takes in an address from global variables
-  if (FlightTime() % 30000UL == 29999UL && !pass && FlightTime() <= 2 * 60 * 60 * 1000UL) { // runs once every 30 seconds up till 2 hours of flight have elapsed
+  if (FlightTime() % 30000UL == 0 && !pass && FlightTime() <= 2 * 60 * 60 * 1000UL) { // runs once every 30 seconds up till 2 hours of flight have elapsed
     EEPROM.write(adr, (byte)((FlightTime() / 30000UL))); // divide flight time by 30000 because EEPROM can only store 1 byte. this means add 1 every 30 seconds from the beginning of the flight.
     pass = true;  //makes this run only once per time cycle
   } //end if
-  else if ( FlightTime() % 30000UL == 0) { // if time is an integer multiple of 30 seconds
+  else if ( FlightTime() % 30000UL == 1) { 
     pass = false; //reset for use in previous if
 
   }//end elseif
 
   if (EEPROM.read(adr - 1) != pos) //if the stored value of pos is not equal to the current value of pos.
-    EEPROM.write(adr - 1, pos); // should usually be a 1 unless the dropdown system has started.
+    EEPROM.write(adr - 1, pos); // update the value of pos in memory
 
 }//end saveData
 
 
 //handles the Flight Termination system--------------------------------------------------------------
 void ECutDown() {
-  if ((pos == 7 || false) && !ended) { // if all of the dropsondes have been deployed. activate the emergency cut down system. make sure the fight ends now
+  if ((pos == 7 || false) && !ended) { // if all of the dropsondes have been deployed. activate the flight termination system. make sure the fight ends now
     //change that false to something that will make this system run under certain conditions without pos == 7 being true
-    digitalWrite(dropPin[0], HIGH); // turn pin 20 on (emergency sut down system)
+    digitalWrite(dropPin[0], HIGH); // turn pin 20 on (flight termination system)
     delay(15000); //wait 15 seconds
     digitalWrite(dropPin[0], LOW);  // turn pin 20 off
     ended = true; //end this system
