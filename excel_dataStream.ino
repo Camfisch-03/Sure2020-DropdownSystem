@@ -1,7 +1,7 @@
 ////Libraries------------------------------------------------------------------
 #include <TinyGPS++.h>
 #include <EEPROM.h>
-#define HSW Serial1 //pins 0 for RX and 1 for TX
+#define HWS Serial1 //pins 0 for RX and 1 for TX
 
 // Serial data variables ------------------------------------------------------
 const byte kNumberOfChannelsFromExcel = 10;
