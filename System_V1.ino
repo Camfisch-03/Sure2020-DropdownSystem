@@ -122,7 +122,7 @@ void loop() {
     {
       //checks for emergencies, and if it can handle them
       emergency_System(); 
-    }
+    } // end if
 
     //parse data into usable chunks
     getGPSdata(); 
@@ -156,7 +156,7 @@ void FeedGPS()
   { 
     useGPS = false; //don't use GPS for dropdown process
     GPSFailureCheck();  //send system to try and amend GPS issue
-  }
+  } // end if
 
 }//end FeedGPS
 
@@ -230,7 +230,7 @@ void dropDown_System()
     if (!begun_drop) // if this is the first time getting into this system
     {
       begun_drop = true; // once its started, it will go all the way through without interruption
-    }
+    } // end if
     
     // was off for specified time, now it should be on
     if (pos <= 6 && prevState == 0 && FlightTime() >= currentTime[Drop] + time_Off[pos - 1]) 
@@ -239,7 +239,7 @@ void dropDown_System()
       if (pos == 1) 
       {
         EEPROM.write(DataAddr - 2, begun_drop); // assign current statud of dropdown system to memory
-      }
+      } // end if
       prevState = 1;  // system is currently on
       currentTime[Drop] = FlightTime(); // reassign drop time for comparisons
     } //end if
@@ -308,7 +308,7 @@ void emergency_System()
     if (false) // some other check to make
     { 
       ECutDown(); // stop the flight here?
-    }
+    } // end if
   }//end if
 
   if (false) // I feel like i still need something else to go here, independent of flight time.
@@ -326,12 +326,12 @@ void blink(unsigned int per)  // per is the period of blinking
   if (millis() % per >= per / 2)
   {  
     digitalWrite(LED, HIGH);
-  }
+  } // end if
   // off for the second half of the period
   else if (millis() % per < per / 2) 
   {
     digitalWrite(LED, LOW);
-  }
+  } // end elseif
 
 }//end blink
 
@@ -353,7 +353,7 @@ void saveData(int adr) // input an address to save data to and near
   if (EEPROM.read(adr - 1) != pos) //if stored value of pos is not equal to current value of pos.
   {
     EEPROM.write(adr - 1, pos); // reasign stored value to be current value
-  }
+  } // end if
 
 }//end saveData
 
@@ -370,4 +370,5 @@ void ECutDown()
     digitalWrite(dropPin[0], LOW);  // turn pin 20 off
     ended = true; //end this system
   }// end if
+  
 }// end ECutDown
