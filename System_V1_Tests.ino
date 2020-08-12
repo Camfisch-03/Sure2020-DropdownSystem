@@ -10,36 +10,36 @@
 
 ////Libraries-----------------------------------------------------------------------------------------
 #include <TinyGPS++.h>
-#include <SoftwareSerial.h>
 #include <EEPROM.h>
+#define HWS Serial1 //Hardware Serial port 1 (pins 0 for RX and 1 for TX)
 
 //Declare global Variables----------------------------------------------------------------------------
 long currentTime[] = {0, 0, 0, 0, 0, 0, 0}; //a few time variables
 byte GPS = 0, Drop = 1, count = 0, count1 = 0;  //name for time variables
 const int dropPin[] = {20, 14, 15, 16, 17, 18, 19}; //which pins are attached to the nichrome system
-const int minAlt = 260; //minalt is the altitude the main fligh system starts at
+const int minAlt = 500; //minalt is the altitude the main fligh system starts at
 byte pos = 1, prevState = 0;
 bool begun = false, dropped = false, newData = false, useGPS = true, emergency_Status = false, pass = false, ended = false;
 unsigned long time_On = 10000, time_Off[] = {0, 20000, 20000, 40000, 20000, 20000, 40000}; // edit here for delay times in millis leave the first 0 alone.
 unsigned long maxFlightTime = 45 * 60 * 1000;  //flight time before emergency system runs
-float GPSdata[] = {0, 0, 0, 0, 0, 0, 0};  //various GPS data fields
-byte Lat = 0, Lon = 1, Alt = 2, prevAlt = 3, numSat = 4, speed = 5; //name of GPS data fields
-uint32_t utcTime; //GPS time variable
+float GPSdata[] = {0, 0, 0, 0, 0, 0, 0};  //various GPS data fields which are:
+byte Lat = 0, Lon = 1, Alt = 2, prevAlt = 3, numSat = 4, speed = 5; //latitude, longitude, altitude, previous altitude, number of satallites, and speed
+uint32_t utcTime; //
 int FTaddr = 11; // occasionally increment this by 3 to avoid dammage to the teensy
 float tempAlt = 0;  //a temporaty alt for comparison
 //unsigned long numPass = 0;
 
 
-////GPS declaratio-----------------------------------------------------------------------------------
+////GPS declaration---------------------------------------------------------------------------------
 TinyGPSPlus gps;  //GPS is named gps
-SoftwareSerial ss(0, 1); //RX 0, TX 1 (attach GPS TX to teensy RX and vice versa)
+
 
 //Setup----------------------------------------------------------------------------------------------
 void setup() {
 
   //serial/ ports//////
   Serial.begin(9600);
-  ss.begin(9600);
+  HWS.begin(9600);
 
   //pin declarations//////
   for (int i = 0; i <= 6; i++) {  //cycle through pin array
@@ -69,16 +69,16 @@ void loop() {
   while (!begun) { // preflight procedure, only ends once flight has begin
     FeedGPS();//recieve any incoming data
 
-    if ((GPSdata[Alt] > GPSdata[prevAlt] && GPSdata[prevAlt] != tempAlt) || GPSdata[Alt] >= minAlt) { //if the GPS is ascending, or above minAlt
+    if ((GPSdata[Alt] > GPSdata[prevAlt] && gps.altitude.isUpdated()) && GPSdata[numSat] > 3|| GPSdata[Alt] >= minAlt) { //if the GPS is ascending, or above minAlt
       tempAlt = GPSdata[prevAlt]; //assign previous alt to temp alt for comparison, to make the above statement only work once per update
-      count1++; //increment count1
+      count1++; // updates of ascending consecutivly
       Serial.println(count1);
       if (count1 >= 100) { //if the GPS is reading an increase in altitude for 30 consecutive updates, or practically instantly if the alt is above minAlt
         begun = true;//start the main flight system
 
       }//end if
     } //end if
-    else if (GPSdata[prevAlt] > GPSdata[Alt] && GPSdata[prevAlt] != tempAlt && GPSdata[Alt] < minAlt) { //if GPS is falling
+    else if (GPSdata[prevAlt] > GPSdata[Alt] && gps.altitude.isUpdated() && GPSdata[Alt] < minAlt ) { //if GPS is falling
       tempAlt = GPSdata[prevAlt];
       count1 = 0; //reasign count1 back to 0 and restart the count
       Serial.println(count1);
@@ -144,8 +144,8 @@ unsigned long FlightTime() {
 
 // see if the GPS has any new data--------------------------------------------------------------------
 void FeedGPS() {
-  while (ss.available() > 0) {  //while there is new data
-    gps.encode(ss.read());  //send that new data to the GPS encoder to be read in getGPSdata()
+  while (HWS.available() > 0) {  //while there is new data
+    gps.encode(HWS.read());  //send that new data to the GPS encoder to be read in getGPSdata()
     newData = true; //there is new data (unused var)
 
   }//end while
@@ -182,7 +182,7 @@ void getGPSdata() {
 //checks to see how many satalites are present-------------------------------------------------------
 //also checks the age and validity of location + altitude
 void satCheck() {
-  Serial.print(GPSdata[numSat]); Serial.print(" Satalites in view, ");
+  Serial.print(GPSdata[numSat]); Serial.print(" Satellites in view, ");
   if (GPSdata[numSat] <= 3 && gps.satellites.isUpdated()) { // a GPS can work with 3 satalites, but is only accurate with 4 or more
     Serial.print("Bad ");
     count++;  //increment the number of times a bad check was made
@@ -207,10 +207,12 @@ void GPSFailureCheck() {
   currentTime[GPS] = FlightTime(); //set a counter to measure the 5 seconds with
   useGPS = false; // preemptivly declare the GPS to be not working
   while (FlightTime() - currentTime[GPS] <= 5000UL && !begun) { // 5 seconds of continuous checking for new data and the dropdown system hasnt started yet (or ended)
+    count1 = 0; //for use in preflight system as another point of checking. 
     blink(500); //a fairly rapid blinking so signify an error
-    while (ss.available() > 0) { // only true if new data is recieved
-      gps.encode(ss.read());  //send data to encoder to be parsed later
+    while (HWS.available() > 0) { // only true if new data is recieved
+      gps.encode(HWS.read());  //send data to encoder to be parsed later
       newData = true; //(unused var)
+      break;
     }//end while
   }//end while
   digitalWrite(13, LOW); // to stop the blinking
