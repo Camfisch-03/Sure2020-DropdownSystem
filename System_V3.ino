@@ -4,7 +4,7 @@
 
 //TODO//----------------------------------------------------------------------------------------------
 // work more on the emergency system and all of its functions
-// fully implement the flight termination system
+//
 
 
 ////Libraries and declarations------------------------------------------------------------------------
@@ -17,19 +17,19 @@
 #define maxAlt 15000  // altitude dropdown system starts at
 
 //Declare global Variables----------------------------------------------------------------------------
-long currentTime[] = {0, 0, 0, 0}; // Time stamps for:
-const byte GPS = 0, Drop = 1, preflight = 3;  // GPS systems, Dropdown system, FlightTime
+long currentTime[] = {0, 0, 0, 0}; // Time stamps used for:
+const byte Drop = 1, preflight = 3;  // Dropdown system, FlightTime
 float prevAlt = 0, currentAlt = 0;  // previaous altitude and current altitude for somparison
 uint32_t utcTime; // coordinated universal time
 int dropPin[] = {20, 14, 15, 16, 17, 18, 19}; // which pins are attached to the nichrome system
 byte pos = 1, prevState = 0;  // dropdown system place markers
-unsigned long time_On = 10000, time_Off[] = {0, 20000, 20000, 40000, 20000, 20000, 40000}; // dropdown delay times
+unsigned long time_On = 10000, time_Off[] = {0, 20000, 20000, 40000, 20000, 20000, 60000}; // dropdown delay times
 //time on for how long to have nichrome hot for, time off for spacend between dropsonde deployments
 int  bad_sat_count = 0, ascent_count = 0; // count for satCheck, count for ascending updates
 bool begun_flight = false, begun_drop = false, dropped = false; // has the main flight started? has the dropdown system started?
 bool useGPS = true, emergency_Status = false, pass = false, ended = false;  //pass is for saveData, ended is for ECutDown
 unsigned long maxFlightTime = 2700000, dropFlightTime = 2100000;  //max is for emergency stsyem start, drop is sropdown system start
-int DataAddr = 11; // address to store data, increment by 3 after each flight. reset all addresses after 1000
+int DataAddr = 14; // address to store data, increment by 3 after each flight. reset all addresses after 1000
 // address is for FlighTtime, address - 1 is for pos, address - 2 is for begun_drop
 
 
@@ -46,18 +46,10 @@ void setup()
   for (unsigned int i = 0; i < (sizeof(dropPin) / sizeof(dropPin[0])); i++) //cycle through pin array
   {
     pinMode(dropPin[i], OUTPUT);  //set pins to output
+    digitalWrite(dropPin[i], LOW);  //set pins to off
   } //end for
   // pin 0 is only for the flight termination system. 1-6 are the dropsondes, hence why pos starts at 1.
   pinMode(LED, OUTPUT); //LED on pin 13 for some visual feedback
-  for (unsigned int i = 0; i < (sizeof(dropPin) / sizeof(dropPin[0])); i++) //cycle through pin array
-  {
-    digitalWrite(dropPin[i], LOW);  //set pins to off
-  } //end for
-
-  for (unsigned int i = 0; i < (sizeof(dropPin) / sizeof(dropPin[0])); i++) //cycle through pin array
-  {
-    digitalWrite(dropPin[i], LOW);  // make sure pins are off
-  }
 
   // memory checks from previous flight data
   if (EEPROM.read(DataAddr - 1) == 0)  //if this address has never been used before
@@ -75,9 +67,9 @@ void setup()
 } // end setup
 
 
-//main loop/ preflight-------------------------------------------------------------------------------
+//main loop ------------------------------------------------------------------------------------------
 void loop() {
-  // perflight procedure
+  // perflight ---------------------------------------------------------------------------------------
   while (!begun_flight)
   {
     //receive any incoming data
@@ -92,12 +84,12 @@ void loop() {
       if (gps.altitude.meters() >= minAlt)
       {
         ascent_count++; //incerment good check
-      }
+      } // end if
       //if altitude below minalt
       else
       {
         ascent_count = 0; //reset check
-      }
+      } // end else
       prevAlt = currentAlt; // used for change in altitude
       currentAlt = gps.altitude.meters(); // update altitude
     } // end if
@@ -105,9 +97,17 @@ void loop() {
     if (ascent_count >= 5)
     {
       begun_flight = true;  //start the main flight
-    }
+    } // end  if
 
-    blink(2000); //blink at rate of 2 seconds to signify working
+    // if the GPS is working properly
+    if (useGPS)
+    {
+      blink(2000); //blink at rate of 2 seconds to signify working
+    } // end if
+    else
+    {
+      blink(500); // a faster blink so say GPS isnt establiched yet
+    } // end else
   } // end while(!begun_flight)
 
 
@@ -120,10 +120,9 @@ void loop() {
   {
     begun_drop = EEPROM.read(DataAddr - 2); //assign the previous value of begun_drop to the current variable
   }//end else
-  digitalWrite(13, LOW); // stop blinking as flight has begin
-  currentTime[GPS] = FlightTime(); // reset GPS time for continuity's sake. and GPSFailureCheck
+  digitalWrite(LED, LOW); // stop blinking as flight has begin
 
-  // primary functionality, once flight begins -------------------------------------------------------
+  // main flight -----------------------------------------------------------------------------------
   while (1 == 1)
   {
     //look for incoming info from the GPS
@@ -140,7 +139,7 @@ void loop() {
     {
       //checks for emergencies, and if it can handle them
       emergency_System();
-    }
+    } // end if
 
     //save flight time + pos to memory at address DataAddr
     saveData(DataAddr);
@@ -149,7 +148,7 @@ void loop() {
     {
       prevAlt = currentAlt; // used for change in altitude
       currentAlt = gps.altitude.meters(); // update altitude
-    }
+    } // end if
 
 
   }//ens while(1==1)
@@ -177,26 +176,11 @@ void FeedGPS()
   //neither location nor altitude have been updated in 5 sec or more
   if (gps.altitude.age() >= 5000UL && gps.location.age() >= 5000UL)
   {
-    currentTime[GPS] = FlightTime(); // set a counter to measure change in time
     useGPS = false; // preemptively declare GPS to be not working
-
-    //    // a few seconds of searching, only if dropdown system isnt running
-    //    while (FlightTime() - currentTime[GPS] <= 1000UL && !begun_drop)
-    //    {
-    //      ascent_count = 0; // for use in prefight system as another point to check
-    //      blink(500); // fairly rapid blinking so signify an error
-    //      while (HWS.available() > 0) // if there is new data
-    //      {
-    //        gps.encode(HWS.read());  //send data to encoder to be parsed
-    //        break; //not concerned with recieving all data here
-    //      }//end while
-    //    }//end while
-    //    digitalWrite(13, LOW); // stop the blinking
-    //    currentTime[GPS] = FlightTime();  // reset GPS time stamp
   } // end if
 
   // the position data has been updated very recently
-  else if ( gps.altitude.age() < 10UL || gps.location.age() < 10UL)
+  else if ( gps.altitude.age() < 10UL && gps.location.age() < 100UL)
   {
     useGPS = true;
   } // end else
@@ -238,13 +222,13 @@ void dropDown_System()
     if (((useGPS && gps.altitude.meters() >= maxAlt && gps.altitude.isValid() ) || (FlightTime() >= dropFlightTime && !useGPS)))
     {
       begun_drop = true;
-    }
+    } // end if
     if (begun_drop || emergency_Status)
     {
       if (!begun_drop)
       {
         begun_drop = true;
-      }
+      } // end if
 
       // was off for the specified time, now it should be on
       if (pos <= 6 && prevState == 0 && FlightTime() >= currentTime[Drop] + time_Off[pos - 1])
@@ -253,7 +237,7 @@ void dropDown_System()
         if (pos == 1)
         {
           EEPROM.write(DataAddr - 2, begun_drop); // assign current statud of dropdown system to memory
-        }
+        } // end if
         prevState = 1;  // system is currently on
         currentTime[Drop] = FlightTime(); // reassign drop time for comparisons
       } //end if
@@ -278,7 +262,7 @@ void dropDown_System()
       }// end elseif
 
     }// end if
-  }
+  } // end if
 
 }// end dropDown_System
 
@@ -308,7 +292,7 @@ void emergency_System()
         }   //end if
 
         // not high enough to get decent data
-        else if (gps.altitude.meters() < 10000 && millis() - currentTime[preflight] >= maxFlightTime) 
+        else if (gps.altitude.meters() < 10000 && millis() - currentTime[preflight] >= maxFlightTime)
         { // this is kind of the worst scenario.
           maxFlightTime += 30 * 1000UL; // hope this is a mistake and just wait a minute. maybe something will change??
 
@@ -325,15 +309,15 @@ void emergency_System()
     if (false) // some other check to make
     {
       ECutDown(); // stop the flight here?
-    }
-  }//end if
+    } // end if
+  } // end if
 
   if (false) // I feel like i still need something else to go here, independent of flight time.
   {
     // maybe if it's simply falling too fast?
-  }// end if
+  } // end if
 
-}// end emergency_System
+} // end emergency_System
 
 
 // a visual display that things are working-----------------------------------------------------------
@@ -345,10 +329,10 @@ void blink(unsigned int per)  // per is the period of blinking
     digitalWrite(LED, HIGH);
   }
   // off for the second half of the period
-  else if (millis() % per < per / 2)
+  else
   {
     digitalWrite(LED, LOW);
-  }
+  } // end else
 
 }//end blink
 
@@ -362,6 +346,7 @@ void saveData(int adr) // input an address to save data to and near
     // add 1 every 30 seconds. (EEPROM can only store bytes)
     pass = true;  //makes this run only once per time cycle
   } //end if
+  
   // at some other time step from the first if
   else if ( FlightTime() % 30000UL == 1)
   {
@@ -371,7 +356,7 @@ void saveData(int adr) // input an address to save data to and near
   if (EEPROM.read(adr - 1) != pos) //if stored value of pos is not equal to current value of pos.
   {
     EEPROM.write(adr - 1, pos); // reasign stored value to be current value
-  }
+  } // end if
 
 }//end saveData
 
@@ -387,5 +372,7 @@ void ECutDown()
     delay(15000); //wait 15 seconds
     digitalWrite(dropPin[0], LOW);  // turn pin 20 off
     ended = true; //end this system
+    
   }// end if
+  
 }// end ECutDown
